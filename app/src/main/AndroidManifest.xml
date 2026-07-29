@@ -85,6 +85,24 @@
             </intent-filter>
         </provider>
 
+        <!-- The AdMob / Mobile Ads library registers a ContentProvider
+             (com.google.android.gms.ads.MobileAdsInitProvider) in its own
+             AndroidManifest.xml. AGP merges that into our final manifest
+             even when we do not depend on the play-services-ads artifact
+             directly, because some transitive dependency still drags it
+             in. Android then tries to instantiate that provider on app
+             start, fails to find the class in our APK, and the process
+             dies with:
+               java.lang.RuntimeException: Unable to get provider
+                 com.google.android.gms.ads.MobileAdsInitProvider:
+                 java.lang.IllegalStateException:
+             Use tools:node="remove" to strip the merged-in provider so
+             the app starts cleanly. Safe: the project's own provider
+             above is untouched. -->
+        <provider
+            android:name="com.google.android.gms.ads.MobileAdsInitProvider"
+            tools:node="remove" />
+
     </application>
 
 </manifest>
