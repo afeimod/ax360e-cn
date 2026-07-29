@@ -87,8 +87,21 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Build Release APK
+        # No signing secrets in the repo — release is signed with the
+        # auto-generated debug keystore (see app/build.gradle). This makes
+        # the APK installable for sideloading but not uploadable to the
+        # Play Store. Replace with a real keystore for production.
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: ax360e-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ax360e-release-apk
+          path: app/build/outputs/apk/release/*.apk
