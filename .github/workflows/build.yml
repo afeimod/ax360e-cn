@@ -3,6 +3,15 @@ name: Build APK
 on:
   # Manually trigger from the Actions tab.
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
   # Also run when a GitHub Release is published (lets you ship
   # signed release APKs straight from the release page).
   release:
@@ -89,24 +98,11 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build APK
+        run: ./gradlew assemble${{ inputs.build_type == 'release' && 'Release' || 'Debug' }} --no-daemon
 
-      - name: Build Release APK
-        # No signing secrets in the repo — release is signed with the
-        # auto-generated debug keystore (see app/build.gradle). This makes
-        # the APK installable for sideloading but not uploadable to the
-        # Play Store. Replace with a real keystore for production.
-        run: ./gradlew assembleRelease --no-daemon
-
-      - name: Upload Debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ax360e-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ax360e-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: ax360e-${{ inputs.build_type }}-apk
+          path: app/build/outputs/apk/${{ inputs.build_type }}/*.apk
