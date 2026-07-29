@@ -24,6 +24,7 @@ SPIRV_STAGES = {
 
 XESL_WRAPPER = (
     "#version 460\n"
+    "#define XESL_LANGUAGE_GLSL 1\n"
     "#extension GL_EXT_control_flow_attributes : require\n"
     "#extension GL_EXT_samplerless_texture_functions : require\n"
     "#extension GL_GOOGLE_include_directive : require\n"
@@ -55,19 +56,6 @@ def parse_stage(filename):
     if stage_key not in SPIRV_STAGES:
         return None, None
     return stage_key, SPIRV_STAGES[stage_key]
-
-
-def _write_err(stderr_data):
-    """Write subprocess stderr to sys.stderr, handling both str and bytes.
-
-    Defensive helper: even if a future caller forgets `text=True` on
-    subprocess.run, we still surface the real error instead of crashing
-    with TypeError and silently losing the diagnostic.
-    """
-    if isinstance(stderr_data, bytes):
-        sys.stderr.write(stderr_data.decode("utf-8", errors="replace"))
-    else:
-        sys.stderr.write(stderr_data)
 
 
 def main():
@@ -106,7 +94,7 @@ def main():
         glslang_args = [
             glslang,
             "--stdin" if src_is_xesl else input_path,
-            "-DSHADING_LANGUAGE_GLSL_XE=1",
+            "-DXESL_LANGUAGE_GLSL=1",
             "-S", spirv_stage,
             "-o", glslang_spv,
             "-V",
@@ -116,31 +104,43 @@ def main():
 
         stdin_data = (XESL_WRAPPER % src_name) if src_is_xesl else None
         result = subprocess.run(glslang_args, input=stdin_data, text=True,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
-            print(f"ERROR: glslangValidator failed for {src_name}", file=sys.stderr)
-            if result.stderr:
-                _write_err(result.stderr)
+            # Print diagnostics loudly to both stderr and stdout so that
+            # build tools (ninja/CMake) that filter one stream still show
+            # the real failure reason to the user.
+            diag = (
+                f"ERROR: glslangValidator failed for {src_name}\n"
+                f"  argv: {glslang_args}\n"
+                f"  cwd:  {os.getcwd()}\n"
+                f"  rc:   {result.returncode}\n"
+                f"  --- glslang stdout ---\n{result.stdout or '(empty)'}\n"
+                f"  --- glslang stderr ---\n{result.stderr or '(empty)'}\n"
+            )
+            sys.stderr.write(diag)
+            sys.stdout.write(diag)
+            sys.stderr.flush()
+            sys.stdout.flush()
             return 1
 
         # Step 2: spirv-opt
         result = subprocess.run([
             spirv_opt, "-O", "-O", "--canonicalize-ids",
             glslang_spv, "-o", opt_spv,
-        ], text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print(f"ERROR: spirv-opt failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                _write_err(result.stderr)
+                sys.stderr.write(result.stderr)
             return 1
 
         # Step 3: spirv-dis
         result = subprocess.run([spirv_dis, "-o", dis_txt, opt_spv],
-                                text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print(f"ERROR: spirv-dis failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                _write_err(result.stderr)
+                sys.stderr.write(result.stderr)
             return 1
 
         # Step 4: Generate header
