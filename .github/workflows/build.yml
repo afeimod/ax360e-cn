@@ -1,7 +1,12 @@
 name: Build APK
 
 on:
+  # Manually trigger from the Actions tab.
   workflow_dispatch:
+  # Also run when a GitHub Release is published (lets you ship
+  # signed release APKs straight from the release page).
+  release:
+    types: [published]
 
 jobs:
   build:
