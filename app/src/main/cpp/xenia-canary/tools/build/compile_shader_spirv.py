@@ -57,6 +57,19 @@ def parse_stage(filename):
     return stage_key, SPIRV_STAGES[stage_key]
 
 
+def _write_err(stderr_data):
+    """Write subprocess stderr to sys.stderr, handling both str and bytes.
+
+    Defensive helper: even if a future caller forgets `text=True` on
+    subprocess.run, we still surface the real error instead of crashing
+    with TypeError and silently losing the diagnostic.
+    """
+    if isinstance(stderr_data, bytes):
+        sys.stderr.write(stderr_data.decode("utf-8", errors="replace"))
+    else:
+        sys.stderr.write(stderr_data)
+
+
 def main():
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <input_path> <output_path>", file=sys.stderr)
@@ -93,7 +106,7 @@ def main():
         glslang_args = [
             glslang,
             "--stdin" if src_is_xesl else input_path,
-            "-DXESL_LANGUAGE_GLSL=1",
+            "-DSHADING_LANGUAGE_GLSL_XE=1",
             "-S", spirv_stage,
             "-o", glslang_spv,
             "-V",
@@ -107,27 +120,27 @@ def main():
         if result.returncode != 0:
             print(f"ERROR: glslangValidator failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                sys.stderr.write(result.stderr)
+                _write_err(result.stderr)
             return 1
 
         # Step 2: spirv-opt
         result = subprocess.run([
             spirv_opt, "-O", "-O", "--canonicalize-ids",
             glslang_spv, "-o", opt_spv,
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        ], text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print(f"ERROR: spirv-opt failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                sys.stderr.write(result.stderr)
+                _write_err(result.stderr)
             return 1
 
         # Step 3: spirv-dis
         result = subprocess.run([spirv_dis, "-o", dis_txt, opt_spv],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                                text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print(f"ERROR: spirv-dis failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                sys.stderr.write(result.stderr)
+                _write_err(result.stderr)
             return 1
 
         # Step 4: Generate header
