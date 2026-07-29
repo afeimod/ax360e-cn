@@ -124,23 +124,28 @@ def main():
             return 1
 
         # Step 2: spirv-opt
+        # NOTE: upstream xenia-canary uses `--canonicalize-ids` here, but
+        # that flag was only added to spirv-opt in 2025.x and is missing
+        # from older Vulkan SDK builds (e.g. 1.4.309.0, the one CI uses).
+        # We keep the optimization passes but drop the flag so the build
+        # works on a wider range of toolchains.
         result = subprocess.run([
-            spirv_opt, "-O", "-O", "--canonicalize-ids",
+            spirv_opt, "-O", "-O",
             glslang_spv, "-o", opt_spv,
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        ], text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print(f"ERROR: spirv-opt failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                sys.stderr.write(result.stderr)
+                _write_err(result.stderr)
             return 1
 
         # Step 3: spirv-dis
         result = subprocess.run([spirv_dis, "-o", dis_txt, opt_spv],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                                text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if result.returncode != 0:
             print(f"ERROR: spirv-dis failed for {src_name}", file=sys.stderr)
             if result.stderr:
-                sys.stderr.write(result.stderr)
+                _write_err(result.stderr)
             return 1
 
         # Step 4: Generate header
