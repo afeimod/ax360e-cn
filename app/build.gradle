@@ -28,13 +28,25 @@ android {
         }
     }
     signingConfigs {
-
+        debug {
+            // Re-use the auto-generated debug keystore for release builds.
+            // The release APK is therefore signed with the standard Android
+            // debug key — fine for sideloading, not for Play Store upload.
+            // For a real release, replace this with your own keystore:
+            //   storeFile file('my-release-key.jks')
+            //   storePassword '...'
+            //   keyAlias '...'
+            //   keyPassword '...'
+        }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // Sign release with the debug keystore so CI can produce an
+            // installable APK without any external secrets. Swap to
+            // signingConfigs.myRelease for a Play Store build.
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
@@ -57,10 +69,6 @@ android {
 }
 
 dependencies {
-implementation("com.google.android.gms:play-services-ads-api:24.6.0")
-implementation("com.google.android.gms:play-services-ads:24.6.0")
-implementation("com.google.android.ump:user-messaging-platform:2.1.0")
-
     implementation libs.appcompat
     implementation libs.material
     implementation libs.activity
@@ -69,5 +77,4 @@ implementation("com.google.android.ump:user-messaging-platform:2.1.0")
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
-
 }
